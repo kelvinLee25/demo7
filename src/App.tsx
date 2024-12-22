@@ -1,7 +1,6 @@
-import { Canvas, ThreeEvent, useFrame } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { useRef, useState, Suspense, useEffect } from 'react';
-import { OrbitControls, PerspectiveCamera, Float, Text3D, Grid } from '@react-three/drei';
-import { motion } from 'framer-motion';
+import { OrbitControls, Float } from '@react-three/drei';
 import { Dialog } from '@headlessui/react';
 import { useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
