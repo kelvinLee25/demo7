@@ -1,27 +1,32 @@
-// App.tsx
 import { Canvas } from '@react-three/fiber';
 import { useRef, useState, Suspense, useEffect } from 'react';
 import { Float } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { Dialog } from '@headlessui/react';
 import { useNavigate } from 'react-router-dom';
 import * as THREE from 'three';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faBars } from '@fortawesome/free-solid-svg-icons';
 import { Line } from '@react-three/drei';
+import { ThreeEvent } from '@react-three/fiber';
+import Dialog from './Dialog';
 
 // Types
-type Position = [number, number, number];
+
 type MousePosition = { x: number; y: number };
 
-interface FloatingObjectProps {
-  position: Position;
-  onClick: () => void;
+interface SceneProps {
+  onItemClick: (id: number, position: { x: number, y: number }) => void;
 }
 
-interface ElectricCoinProps {
+interface FloatingImageProps {
   position: [number, number, number];
-  onClick: () => void;
+  onClick: (event: ThreeEvent<MouseEvent>) => void;
+  imagePath: string;
+}
+
+interface ElectricTokenProps {
+  position: [number, number, number];
+  onClick: (event: ThreeEvent<MouseEvent>) => void;
 }
 
 const useViewportSize = () => {
@@ -179,43 +184,75 @@ const CursorFollower = () => {
 };
 
 // Electric Coin component
-const ElectricCoin: React.FC<ElectricCoinProps> = ({ position, onClick }) => {
+const ElectricToken: React.FC<ElectricTokenProps> = ({ position, onClick }) => {
   const meshRef = useRef<THREE.Mesh>(null);
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load('assets/coin1.png', (loadedTexture) => {
+      loadedTexture.encoding = THREE.sRGBEncoding;
+      // Reduce texture intensity
+      loadedTexture.premultiplyAlpha = true;
+      setTexture(loadedTexture);
+    });
+  }, []);
 
   useFrame(() => {
     if (meshRef.current) {
-      meshRef.current.rotation.x += 0.01;
+      // Only rotate around Y axis (left to right)
+      meshRef.current.rotation.y += 0.008; // Reduced rotation speed
+      
+      // Reset other rotations to maintain vertical position
+      meshRef.current.rotation.x = 0;
+      meshRef.current.rotation.z = 0;
     }
   });
 
   return (
     <Float
-      speed={2.5}
-      rotationIntensity={5}
-      floatIntensity={0}
+      speed={1.5} // Reduced from 2.5
+      rotationIntensity={0} // Set to 0 to prevent Float component from adding additional rotation
+      floatIntensity={0.5} // Reduced float intensity
       position={position}
     >
       <group>
-        <mesh ref={meshRef} onClick={onClick}>
-          <cylinderGeometry args={[1.2, 1.2, 0.4, 30]} />
-          <meshStandardMaterial
-            color="#FFD700"
-            metalness={3}
-            roughness={1}
-            emissive="#FFD700"
-            emissiveIntensity={0.2}
-          />
-        </mesh>
-        <LightningStrike />
-        <LightningStrike />
-        <LightningStrike />
+        {texture && (
+          <mesh ref={meshRef} onClick={onClick}>
+            <planeGeometry args={[3, 3]} />
+            <meshStandardMaterial 
+              map={texture}
+              transparent={true}
+              side={THREE.DoubleSide}
+              metalness={1.8}
+              roughness={0.9} 
+
+            />
+          </mesh>
+        )}
+        {/* Reduced number of lightning effects and their intensity */}
+        <group scale={[0.7, 0.7, 0.7]}> {/* Scale down lightning effects */}
+          <LightningStrike />
+          <LightningStrike />
+        </group>
       </group>
     </Float>
   );
 };
 
 // FloatingObject component
-const FloatingObject: React.FC<FloatingObjectProps> = ({ position, onClick }) => {
+const FloatingImage: React.FC<FloatingImageProps> = ({ position, onClick, imagePath }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load(imagePath, (loadedTexture) => {
+      loadedTexture.encoding = THREE.sRGBEncoding;
+      setTexture(loadedTexture);
+    });
+  }, [imagePath]);
+
   return (
     <Float
       speed={2.5}
@@ -223,92 +260,61 @@ const FloatingObject: React.FC<FloatingObjectProps> = ({ position, onClick }) =>
       floatIntensity={2}
       position={position}
     >
-      <mesh onClick={onClick}>
-        <boxGeometry args={[2, 2, 2]} />
-        <meshStandardMaterial
-          color="#9333EA"
-          emissive="#9333EA"
-          emissiveIntensity={0.5}
-          roughness={0.2}
-          metalness={0.8}
-        />
-      </mesh>
+      {texture && (
+        <mesh ref={meshRef} onClick={onClick}>
+          <planeGeometry args={[2.5, 2.5]} />
+          <meshStandardMaterial
+            map={texture}
+            transparent={true}
+            side={THREE.DoubleSide}
+
+          />
+        </mesh>
+      )}
     </Float>
   );
 };
 
-// Scene component
-interface SceneProps {
-  onItemClick: (id: number) => void;
-}
+// Fixed Background Image component
+const FixedBackgroundImage: React.FC<{
+  position: [number, number, number];
+  imagePath: string;
+}> = ({ position, imagePath }) => {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
 
-// EdgeCube component for background cubes with highlighted edges
-const EdgeCube = ({ position, size }: { position: [number, number, number], size: number }) => {
+  useEffect(() => {
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load(imagePath, (loadedTexture) => {
+      loadedTexture.encoding = THREE.sRGBEncoding;
+      setTexture(loadedTexture);
+    });
+  }, [imagePath]);
+
   return (
-    <group position={position}>
-      {/* Black cube base */}
-      <mesh>
-        <boxGeometry args={[size, size, size]} />
-        <meshPhongMaterial 
-          color="#413c3c"  // Dark gray base
-          shininess={100}
-          specular="#333333"  // Lighter specular highlights
-          emissive="#0a0a0a"  // Subtle glow
-          opacity={1}
+    <mesh position={position}>
+      <planeGeometry args={[4, 4]} />
+      {texture && (
+        <meshStandardMaterial
+          map={texture}
           transparent={true}
+          side={THREE.DoubleSide}
         />
-      </mesh>
-      
-      {/* Purple edge lines */}
-      <group>
-        {/* Front vertical edge */}
-        <Line 
-          points={[
-            [size/2, -size/2, size/2],
-            [size/2, size/2, size/2]
-          ]}
-          color="#9333EA"
-          lineWidth={2}
-        />
-        
-        {/* Top horizontal edge */}
-        <Line 
-          points={[
-            [-size/2, size/2, size/2],
-            [size/2, size/2, size/2]
-          ]}
-          color="#9333EA"
-          lineWidth={2}
-        />
-        
-        {/* Side horizontal edge */}
-        <Line 
-          points={[
-            [size/2, size/2, -size/2],
-            [size/2, size/2, size/2]
-          ]}
-          color="#9333EA"
-          lineWidth={2}
-        />
-      </group>
-    </group>
+      )}
+    </mesh>
   );
 };
 
-
-
+// Updated Scene component
 const Scene: React.FC<SceneProps> = ({ onItemClick }) => {
   const viewport = useViewportSize();
   
-  // Calculate scale factor based on viewport width
   const getScale = () => {
-    if (viewport.width <= 380) return 0.5;  // Very small devices
-    if (viewport.width <= 640) return 0.7;  // Small devices
-    if (viewport.width <= 768) return 0.85; // Medium devices
-    return 1; // Default scale for larger devices
+    if (viewport.width <= 380) return 0.5;
+    if (viewport.width <= 640) return 0.7;
+    if (viewport.width <= 768) return 0.85;
+    return 1;
   };
 
-  // Adjust positions based on viewport size
   const getAdjustedPosition = (basePosition: [number, number, number]): [number, number, number] => {
     const scale = getScale();
     return [
@@ -318,60 +324,78 @@ const Scene: React.FC<SceneProps> = ({ onItemClick }) => {
     ];
   };
 
-  // Calculate size based on viewport
-  const getAdjustedSize = (baseSize: number): number => {
-    return baseSize * getScale();
+  const handleClick = (id: number, event: ThreeEvent<MouseEvent>) => {
+    const mesh = event.object as THREE.Mesh;
+    const camera = event.camera as THREE.Camera;
+    
+    const vector = new THREE.Vector3();
+    vector.setFromMatrixPosition(mesh.matrixWorld);
+    
+    const widthHalf = window.innerWidth / 2;
+    const heightHalf = window.innerHeight / 2;
+    
+    vector.project(camera);
+    
+    const x = (vector.x * widthHalf) + widthHalf;
+    const y = -(vector.y * heightHalf) + heightHalf;
+    
+    onItemClick(id, { x, y });
   };
 
   return (
     <>
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={1.5} />
       <pointLight position={[10, 10, 10]} intensity={1} />
       <directionalLight position={[0, 5, 5]} intensity={1} />
 
-      {/* Background Cubes with responsive positioning */}
-      <EdgeCube 
-        position={getAdjustedPosition([-12, 8, -5])} 
-        size={getAdjustedSize(1.5)} 
+      {/* Fixed Background Images */}
+      <FixedBackgroundImage 
+        position={getAdjustedPosition([-18.5, 9, -5])}
+        imagePath="assets/Group (1).png"
       />
-      <EdgeCube 
-        position={getAdjustedPosition([13, 3, -5])} 
-        size={getAdjustedSize(1.2)} 
+      <FixedBackgroundImage 
+        position={getAdjustedPosition([18, 3, -5])}
+        imagePath="assets/Group (1).png"
       />
-      <EdgeCube 
-        position={getAdjustedPosition([-7, -8, -5])} 
-        size={getAdjustedSize(1.3)} 
+      <FixedBackgroundImage 
+        position={getAdjustedPosition([-12, -9.5, -5])}
+        imagePath="assets/Rectangle.png"
       />
-      <EdgeCube 
-        position={getAdjustedPosition([16, -9, -5])} 
-        size={getAdjustedSize(1.4)} 
+      <FixedBackgroundImage 
+        position={getAdjustedPosition([16, -10, -5])}
+        imagePath="assets/Group (2).png"
       />
 
-      {/* Floating Objects with responsive positioning */}
-      <FloatingObject 
-        position={getAdjustedPosition([-6, -2, 0])} 
-        onClick={() => onItemClick(1)} 
+      {/* Interactive Floating Images */}
+      <FloatingImage 
+        position={getAdjustedPosition([-8, -3, 0])} 
+        onClick={(event) => handleClick(1, event)}
+        imagePath="assets/item1.png"
       />
-      <FloatingObject 
-        position={getAdjustedPosition([5, 3, 0])} 
-        onClick={() => onItemClick(2)} 
+      <FloatingImage 
+        position={getAdjustedPosition([9, 4, 0])} 
+        onClick={(event) => handleClick(2, event)}
+        imagePath="assets/item4.png"
       />
-      <FloatingObject 
-        position={getAdjustedPosition([1, -4, 0])} 
-        onClick={() => onItemClick(3)} 
+      <FloatingImage 
+        position={getAdjustedPosition([1, -4.5, 0])} 
+        onClick={(event) => handleClick(3, event)}
+        imagePath="assets/item2.png"
       />
-      <FloatingObject 
-        position={getAdjustedPosition([-5, 3, 0])} 
-        onClick={() => onItemClick(5)} 
+      <FloatingImage 
+        position={getAdjustedPosition([-9, 3, 0])} 
+        onClick={(event) => handleClick(5, event)}
+        imagePath="assets/item5.png"
       />
-      <FloatingObject 
-        position={getAdjustedPosition([5, -3, 0])} 
-        onClick={() => onItemClick(6)} 
+      <FloatingImage 
+        position={getAdjustedPosition([7, -2, 0])} 
+        onClick={(event) => handleClick(6, event)}
+        imagePath="assets/item3.png"
       />
       
-      <ElectricCoin 
+      <ElectricToken 
         position={getAdjustedPosition([0, 1, 0])} 
-        onClick={() => onItemClick(4)} 
+        onClick={(event) => handleClick(4, event)} 
       />
     </>
   );
@@ -380,9 +404,22 @@ const Scene: React.FC<SceneProps> = ({ onItemClick }) => {
 // Main App component
 const App: React.FC = () => {
   const [selectedItem, setSelectedItem] = useState<number | null>(null);
+  const [clickPosition, setClickPosition] = useState<{ x: number, y: number } | undefined>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const viewport = useViewportSize();
+
+  const handleItemClick = (id: number, position: { x: number, y: number }) => {
+    // Set both states simultaneously
+    setSelectedItem(id);
+    setClickPosition(position);
+  };
+  
+  // Clear both states when closing
+  const handleClose = () => {
+    setSelectedItem(null);
+    setClickPosition(undefined);
+  };
 
   return (
     <div className="h-screen w-screen overflow-hidden relative">
@@ -407,7 +444,7 @@ const App: React.FC = () => {
         }}
       >
         <Suspense fallback={null}>
-          <Scene onItemClick={setSelectedItem} />
+          <Scene onItemClick={handleItemClick} />
         </Suspense>
       </Canvas>
 
@@ -415,7 +452,7 @@ const App: React.FC = () => {
         <div className="absolute top-4 sm:top-8 left-1/2 -translate-x-1/2 pointer-events-auto">
           <div className="flex items-center justify-center gap-3">
             <img 
-              src="assets/logo (2).png"
+              src="assets/Group 28360.png"
               alt="Grafilab Logo" 
               className="w-21 h-21 sm:w-21 sm:h-21 object-contain"
             />
@@ -439,28 +476,13 @@ const App: React.FC = () => {
           <FontAwesomeIcon icon={faBars} className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
       </div>
-
+      
       <Dialog
-        open={selectedItem !== null}
-        onClose={() => setSelectedItem(null)}
-        className="relative z-50"
-      >
-        <div className="fixed inset-0 bg-black/70" aria-hidden="true" />
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-gray-900/95 text-white rounded-xl p-4 sm:p-6 w-full max-w-[320px] sm:max-w-sm backdrop-blur-xl shadow-[0_0_15px_5px_rgba(98,6,173,0.8)]">
-            <Dialog.Title className="text-lg sm:text-xl font-bold mb-4">
-              Item Details
-            </Dialog.Title>
-            <p className="text-sm sm:text-base">Details for item {selectedItem}</p>
-            <button
-              onClick={() => setSelectedItem(null)}
-              className="mt-4 px-3 py-1.5 sm:px-4 sm:py-2 bg-purple-600 rounded-lg hover:opacity-90 transition-opacity text-sm sm:text-base"
-            >
-              Close
-            </button>
-          </Dialog.Panel>
-        </div>
-      </Dialog>
+       isOpen={selectedItem !== null}
+       onClose={handleClose}
+       selectedItem={selectedItem}
+       clickPosition={clickPosition}
+       />
 
       <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <button
